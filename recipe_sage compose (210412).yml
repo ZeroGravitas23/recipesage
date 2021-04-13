@@ -15,10 +15,10 @@ services:
       - api
       - pushpin
     restart: unless-stopped
-
+    
   static:
     image: julianpoy/recipesage-selfhost:static-latest
-    container_name: sage_static
+    container_name: static
     networks:
       - frontend
       - backend
@@ -26,12 +26,12 @@ services:
 
   api:
     image: julianpoy/recipesage-selfhost:api-latest
-    container_name: sage_api
+    container_name: api
     networks:
       - backend
       - frontend
     depends_on:
-      - postgres
+      - sage_postgres
       - elasticsearch
       - pushpin
       - browserless
@@ -52,7 +52,7 @@ services:
       - POSTGRES_USER=recipesage_selfhost23
       - POSTGRES_PASSWORD=recipesage_selfhost23
       - POSTGRES_PORT=5432
-      - POSTGRES_HOST=postgres
+      - POSTGRES_HOST=sage_postgres
       - POSTGRES_SSL=false
       - POSTGRES_LOGGING=false
       - GCM_KEYPAIR
@@ -76,9 +76,8 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
-    container_name: sage_elastic
+    container_name: elastic
     networks:
-      - backend
       - frontend
     environment:
       - discovery.type=single-node
@@ -89,9 +88,8 @@ services:
 
   pushpin:
     image: fanout/pushpin:1.27.0
-    container_name: sage_pushpin
+    container_name: pushpin
     networks:
-      - backend
       - frontend
     environment:
       - target=api:3100
@@ -99,9 +97,9 @@ services:
       - '7999:7999'
     restart: unless-stopped
 
-  postgres:
+  sage_postgres:
     image: postgres
-    container_name: sage_db
+    container_name: sage_postgres
     networks:
       - backend
     environment:
@@ -114,9 +112,8 @@ services:
 
   browserless:
     image: browserless/chrome:1.28.0-chrome-stable
-    container_name: sage_browserless
+    container_name: browserless
     networks:
-      - backend
       - frontend
     environment:
       - MAX_CONCURRENT_SESSIONS=3
@@ -125,9 +122,8 @@ services:
 
   ingredient-instruction-classifier:
     image: julianpoy/ingredient-instruction-classifier:latest
-    container_name: sage_ingredient
+    container_name: ingredient-instruction-classifier
     networks:
-      - backend
       - frontend
     environment:
       - SENTENCE_EMBEDDING_BATCH_SIZE=200
@@ -136,9 +132,8 @@ services:
 
   minio:
     image: minio/minio
-    container_name: sage_minio
+    container_name: minio
     networks:
-      - backend
       - frontend
     environment:
       - MINIO_ACCESS_KEY=recipesage23
@@ -149,12 +144,11 @@ services:
       - '9100:9000'
     command: server /data
     restart: unless-stopped
-
+    
   create-minio-buckets:
     image: minio/mc
-    container_name: sage_mc
+    container_name: mc
     networks:
-      - backend
       - frontend
     depends_on:
       - minio
