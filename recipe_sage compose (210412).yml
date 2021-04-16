@@ -2,46 +2,42 @@ version: '3.7'
 services:
   proxy-sage:
     image: nginx
-    container_name: proxy-sage
+    container_name: proxy_sage
     networks:
       - frontend
-      - backend
     volumes:
      - /riptalon/Appdata/recipesage/nginx-sage/default.conf:/etc/nginx/conf.d/default.conf
-    ports:
-    - 83:80
     depends_on:
-      - static
-      - api
-      - pushpin
+      - sage_static
+      - sage_api
+      - sage_pushpin
     restart: unless-stopped
     
-  static:
+  sage_static:
     image: julianpoy/recipesage-selfhost:static-latest
-    container_name: static
+    container_name: sage_static
     networks:
       - frontend
-      - backend
     restart: unless-stopped
 
-  api:
+  sage_api:
     image: julianpoy/recipesage-selfhost:api-latest
-    container_name: api
+    container_name: sage_api
     networks:
       - backend
       - frontend
     depends_on:
       - sage_postgres
-      - elasticsearch
-      - pushpin
-      - browserless
+      - sage_elastic
+      - sage_pushpin
+      - sage_browserless
     command: /app/www
     environment:
       - AWS_ACCESS_KEY_ID=recipesage23
       - AWS_SECRET_ACCESS_KEY=recipesage_selfhost23
       - AWS_REGION=us-west-2
       - AWS_BUCKET=recipesage-selfhost
-      - AWS_ENDPOINT=http://minio:9100/ # Needed for minio, remove for s3 - should be the internal container address to minio
+      - AWS_ENDPOINT=http://sage_minio:9000/ # Needed for minio, remove for s3 - should be the internal container address to minio
       - AWS_S3_PUBLIC_PATH=/minio/recipesage-selfhost/ # Needed for minio, remove for s3 - should be a public facing address/path directed to minio (by default nginx proxy handles)
       - AWS_S3_FORCE_PATH_STYLE=true # Needed for minio, remove for s3
       - AWS_S3_SIGNATURE_VERSION=v4 # Needed for minio, remove for s3
@@ -59,24 +55,22 @@ services:
       - SENTRY_DSN
       - GRAYLOG_HOST=localhost
       - GRAYLOG_PORT
-      - GRIP_URL=http://pushpin:5561/
+      - GRIP_URL=http://sage_pushpin:5561/
       - GRIP_KEY=changeme
       - ELASTIC_ENABLE=true
       - ELASTIC_IDX_PREFIX=rs_selfhost_
-      - ELASTIC_CONN=http://elastic:recipesage_selfhost@elasticsearch:9200
+      - ELASTIC_CONN=http://sage_elastic:recipesage_selfhost@elasticsearch:9200
       - ELASTIC_PASSWORD=recipesage_selfhost
       - STRIPE_SK
       - STRIPE_WEBHOOK_SECRET
-      - BROWSERLESS_HOST=browserless
-      - BROWSERLESS_PORT=3100
-      - INGREDIENT_INSTRUCTION_CLASSIFIER_URL=http://ingredient-instruction-classifier:3100/
-    ports:
-      - '3100:3000'
+      - BROWSERLESS_HOST=sage_browserless
+      - BROWSERLESS_PORT=3000
+      - INGREDIENT_INSTRUCTION_CLASSIFIER_URL=http://sage_ingredient-instruction-classifier:3000/
     restart: unless-stopped
 
-  elasticsearch:
+  sage_elastic:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.6.1
-    container_name: elastic
+    container_name: sage_elastic
     networks:
       - frontend
     environment:
@@ -86,15 +80,13 @@ services:
       - /riptalon/Appdata/recipesage/elasticsearch:/usr/share/elasticsearch/data
     restart: unless-stopped
 
-  pushpin:
+  sage_pushpin:
     image: fanout/pushpin:1.27.0
-    container_name: pushpin
+    container_name: sage_pushpin
     networks:
       - frontend
     environment:
-      - target=api:3100
-    ports:
-      - '7999:7999'
+      - target=sage_api:3000
     restart: unless-stopped
 
   sage_postgres:
@@ -110,9 +102,9 @@ services:
       - /riptalon/Appdata/recipesage/postgresdb:/var/lib/postgresql/data
     restart: unless-stopped
 
-  browserless:
+  sage_browserless:
     image: browserless/chrome:1.28.0-chrome-stable
-    container_name: browserless
+    container_name: sage_browserless
     networks:
       - frontend
     environment:
@@ -120,9 +112,9 @@ services:
       - MAX_QUEUE_LENGTH=10
     restart: unless-stopped
 
-  ingredient-instruction-classifier:
+  sage_ingredient-instruction-classifier:
     image: julianpoy/ingredient-instruction-classifier:latest
-    container_name: ingredient-instruction-classifier
+    container_name: sage_ingredient-instruction-classifier
     networks:
       - frontend
     environment:
@@ -130,9 +122,9 @@ services:
       - PREDICTION_CONCURRENCY=4
     restart: unless-stopped
 
-  minio:
+  sage_minio:
     image: minio/minio
-    container_name: minio
+    container_name: sage_minio
     networks:
       - frontend
     environment:
@@ -140,22 +132,20 @@ services:
       - MINIO_SECRET_KEY=recipesage_selfhost23
     volumes:
       - /riptalon/Appdata/recipesage/minio:/data
-    ports:
-      - '9100:9000'
     command: server /data
     restart: unless-stopped
     
-  create-minio-buckets:
+  sage_mc:
     image: minio/mc
-    container_name: mc
+    container_name: sage_mc
     networks:
       - frontend
     depends_on:
-      - minio
+      - sage_minio
     entrypoint: sh -c
     command: >
       "
-      /usr/bin/mc config host add myminio http://minio:9100 recipesage23 recipesage_selfhost23;
+      /usr/bin/mc config host add myminio http://sage_minio:9000 recipesage23 recipesage_selfhost23;
       /usr/bin/mc mb myminio/recipesage-selfhost;
       /usr/bin/mc policy set public myminio/recipesage-selfhost;
       exit 0;
